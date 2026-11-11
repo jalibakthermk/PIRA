@@ -745,8 +745,8 @@
           <option value="FMVSS_REAR_TURN_TAIL_NARROW">FMVSS 108 Table VII — Rear Turn Signal / Taillamp (&lt; 2032 mm Width)</option>
           <option value="FMVSS_REAR_TURN_TAIL_WIDE">FMVSS 108 Table VII — Rear Turn Signal / Taillamp (≥ 2032 mm Width)</option>
           <option value="FMVSS_FRONT_TURN_PARKING">FMVSS 108 Table VI — Front Turn Signal / Parking Lamp</option>
-          <option value="FMVSS_TURN_CLEARANCE">FMVSS 108 Tables VI &amp; VII — Turn Signal / Clearance Lamp</option>
-          <option value="ECE_R148_STOP_TAIL">UN/ECE R148 Annex 3 — Stop / Rear Position (Tail) Lamp</option>
+          <option value="FMVSS_TURN_CLEARANCE">FMVSS 108 Tables VI &amp; VII — Turn Signal / Clearance Lamp (≥ 2032 mm)</option>
+          <option value="ECE_R148_STOP_TAIL">UN R148 — Stop / Rear Position (Tail) Lamp (H ±10°, V ±5° field)</option>
         </select>
         <div class="reg-meta" id="regDescription"></div>
       </div>
@@ -853,7 +853,7 @@
           <table>
             <thead>
               <tr>
-                <th>Zone</th>
+                <th>Group / Zone</th>
                 <th>Test Point (Effective)</th>
                 <th>Sampled (H°, V°)</th>
                 <th id="thPrimary">Primary (cd)</th>
@@ -894,109 +894,130 @@
 
   <script>
     /**
-     * Builds the 19-point FMVSS 108 base matrix defined for a Left-Hand (LH) lamp.
-     * Note on FMVSS 108 Table VI, VII, IX Footnote / Symmetry rules:
-     * - Base tables are specified for a Left-Hand (LH) mounted lamp where Left (L) is Outboard and Right (R) is Inboard.
-     * - On wide vehicles (>= 2032 mm), Footnote 6 specifies the 3:1 ratio at H-5L on the base LH table, which mirrors to H-5R when mounted on the Right-Hand (RH) side.
+     * Test point helper. Every check below owns its own explicit point table, so the
+     * matrix, canvas and CSV always reflect exactly the points of the selected check.
+     * Coordinates are for the base Left-Hand (LH) lamp: L = outboard (-H), R = inboard (+H).
+     * RH mounting mirrors them at evaluation time (see getMirroredPointName).
      */
-    function buildFmvss19Points(h5lRatio, includeOuterRatio = true, allFiveToOne = false) {
-      const rOuter = allFiveToOne ? 5.0 : (includeOuterRatio ? 3.0 : null);
-      const rH5L = allFiveToOne ? 5.0 : h5lRatio;
-      const pts = [
-        // Zone 1
-        { zone: "Zone 1", baseName: "10U-5L",  baseH: -5,  v: 10, req: 5.0 },
-        { zone: "Zone 1", baseName: "5U-20L",  baseH: -20, v: 5,  req: rOuter },
-        { zone: "Zone 1", baseName: "5D-20L",  baseH: -20, v: -5, req: rOuter },
-        { zone: "Zone 1", baseName: "10D-5L",  baseH: -5,  v: -10, req: rOuter },
-        // Zone 2
-        { zone: "Zone 2", baseName: "5U-10L",  baseH: -10, v: 5,  req: 5.0 },
-        { zone: "Zone 2", baseName: "H-10L",   baseH: -10, v: 0,  req: 5.0 },
-        { zone: "Zone 2", baseName: "5D-10L",  baseH: -10, v: -5, req: 5.0 },
-        // Zone 3
-        { zone: "Zone 3", baseName: "H-5L",    baseH: -5,  v: 0,  req: rH5L },
-        { zone: "Zone 3", baseName: "5U-V",    baseH: 0,   v: 5,  req: 5.0 },
-        { zone: "Zone 3", baseName: "H-V",     baseH: 0,   v: 0,  req: 5.0 },
-        { zone: "Zone 3", baseName: "5D-V",    baseH: 0,   v: -5, req: 5.0 },
-        { zone: "Zone 3", baseName: "H-5R",    baseH: 5,   v: 0,  req: 5.0 },
-        // Zone 4
-        { zone: "Zone 4", baseName: "5U-10R",  baseH: 10,  v: 5,  req: 5.0 },
-        { zone: "Zone 4", baseName: "H-10R",   baseH: 10,  v: 0,  req: 5.0 },
-        { zone: "Zone 4", baseName: "5D-10R",  baseH: 10,  v: -5, req: 5.0 },
-        // Zone 5
-        { zone: "Zone 5", baseName: "10U-5R",  baseH: 5,   v: 10, req: 5.0 },
-        { zone: "Zone 5", baseName: "5U-20R",  baseH: 20,  v: 5,  req: rOuter },
-        { zone: "Zone 5", baseName: "5D-20R",  baseH: 20,  v: -5, req: rOuter },
-        { zone: "Zone 5", baseName: "10D-5R",  baseH: 5,   v: -10, req: rOuter }
-      ];
-      return pts.filter(p => p.req !== null);
-    }
+    const P = (zone, baseName, baseH, v, req) => ({ zone, baseName, baseH, v, req });
 
     const REGULATIONS = {
+      // ── FMVSS 108 Table IX — Stop lamp combined with taillamp (S7.3.12) ──
       FMVSS_STOP_TAIL_NARROW: {
         title: "FMVSS 108 Table IX — Stop Lamp / Taillamp (< 2032 mm Width)",
         primaryLabel: "Stop Lamp (cd)",
         secondaryLabel: "Taillamp (cd)",
-        description: "49 CFR § 571.108 Table IX (SAE J586): Stop lamp optically combined with taillamp on vehicles < 2032 mm wide. Requires 5:1 at core points (including H-5L/R) and 3:1 at 5U/5D-20L/R and 10D-5L/R.",
-        points: buildFmvss19Points(5.0, true, false)
+        description: "49 CFR § 571.108 S7.3.12 / Table IX: Stop lamp optically combined with taillamp, vehicles < 2032 mm wide. 19 stop-lamp test points (Groups 1–5). 5:1 at Groups 2–4 and 10U-5L/R, 3:1 at 5U/5D-20L/R and 10D-5L/R.",
+        points: [
+          P("Group 1", "10U-5L", -5, 10, 5.0), P("Group 1", "5U-20L", -20, 5, 3.0),
+          P("Group 1", "5D-20L", -20, -5, 3.0), P("Group 1", "10D-5L", -5, -10, 3.0),
+          P("Group 2", "5U-10L", -10, 5, 5.0), P("Group 2", "H-10L", -10, 0, 5.0), P("Group 2", "5D-10L", -10, -5, 5.0),
+          P("Group 3", "H-5L", -5, 0, 5.0), P("Group 3", "5U-V", 0, 5, 5.0), P("Group 3", "H-V", 0, 0, 5.0),
+          P("Group 3", "5D-V", 0, -5, 5.0), P("Group 3", "H-5R", 5, 0, 5.0),
+          P("Group 4", "5U-10R", 10, 5, 5.0), P("Group 4", "H-10R", 10, 0, 5.0), P("Group 4", "5D-10R", 10, -5, 5.0),
+          P("Group 5", "10U-5R", 5, 10, 5.0), P("Group 5", "5U-20R", 20, 5, 3.0),
+          P("Group 5", "5D-20R", 20, -5, 3.0), P("Group 5", "10D-5R", 5, -10, 3.0)
+        ]
       },
       FMVSS_STOP_TAIL_WIDE: {
         title: "FMVSS 108 Table IX — Stop Lamp / Taillamp (≥ 2032 mm Width)",
         primaryLabel: "Stop Lamp (cd)",
         secondaryLabel: "Taillamp (cd)",
-        description: "49 CFR § 571.108 Table IX Footnote 6 (SAE J1398): Stop lamp optically combined with taillamp on vehicles ≥ 2032 mm wide. Base H-5L (LH) / mirrored H-5R (RH) requires 3:1; other core points require 5:1.",
-        points: buildFmvss19Points(3.0, true, false)
+        description: "49 CFR § 571.108 S7.3.12 / Table IX: Stop lamp optically combined with taillamp, vehicles ≥ 2032 mm wide. Same 19 points; outboard H-5L (LH base, H-5R when mirrored to RH) relaxed to 3:1.",
+        points: [
+          P("Group 1", "10U-5L", -5, 10, 5.0), P("Group 1", "5U-20L", -20, 5, 3.0),
+          P("Group 1", "5D-20L", -20, -5, 3.0), P("Group 1", "10D-5L", -5, -10, 3.0),
+          P("Group 2", "5U-10L", -10, 5, 5.0), P("Group 2", "H-10L", -10, 0, 5.0), P("Group 2", "5D-10L", -10, -5, 5.0),
+          P("Group 3", "H-5L", -5, 0, 3.0), P("Group 3", "5U-V", 0, 5, 5.0), P("Group 3", "H-V", 0, 0, 5.0),
+          P("Group 3", "5D-V", 0, -5, 5.0), P("Group 3", "H-5R", 5, 0, 5.0),
+          P("Group 4", "5U-10R", 10, 5, 5.0), P("Group 4", "H-10R", 10, 0, 5.0), P("Group 4", "5D-10R", 10, -5, 5.0),
+          P("Group 5", "10U-5R", 5, 10, 5.0), P("Group 5", "5U-20R", 20, 5, 3.0),
+          P("Group 5", "5D-20R", 20, -5, 3.0), P("Group 5", "10D-5R", 5, -10, 3.0)
+        ]
       },
+
+      // ── FMVSS 108 Table VII — Rear turn signal combined with taillamp (S7.1.2.12) ──
+      // ── FMVSS 108 Table VII — Rear turn signal combined with taillamp (S7.1.2.12) ──
       FMVSS_REAR_TURN_TAIL_NARROW: {
         title: "FMVSS 108 Table VII — Rear Turn Signal / Taillamp (< 2032 mm Width)",
         primaryLabel: "Rear Turn (cd)",
         secondaryLabel: "Taillamp (cd)",
-        description: "49 CFR § 571.108 Table VII (SAE J588): Rear turn signal optically combined with taillamp on vehicles < 2032 mm wide. Requires 5:1 at core points and 3:1 at 20° and 10D points.",
-        points: buildFmvss19Points(5.0, true, false)
+        description: "49 CFR § 571.108 S7.1.2.12 / Table VII: Rear turn signal optically combined with taillamp, vehicles < 2032 mm wide. 19 turn-signal test points; 5:1 at Group 3 (H-V, 5U-V, 5D-V, H-5L, H-5R), 3:1 at all other points.",
+        points: [
+          P("Group 1", "10U-5L", -5, 10, 3.0), P("Group 1", "5U-20L", -20, 5, 3.0),
+          P("Group 1", "5D-20L", -20, -5, 3.0), P("Group 1", "10D-5L", -5, -10, 3.0),
+          P("Group 2", "5U-10L", -10, 5, 3.0), P("Group 2", "H-10L", -10, 0, 3.0), P("Group 2", "5D-10L", -10, -5, 3.0),
+          P("Group 3", "H-5L", -5, 0, 5.0), P("Group 3", "5U-V", 0, 5, 5.0), P("Group 3", "H-V", 0, 0, 5.0),
+          P("Group 3", "5D-V", 0, -5, 5.0), P("Group 3", "H-5R", 5, 0, 5.0),
+          P("Group 4", "5U-10R", 10, 5, 3.0), P("Group 4", "H-10R", 10, 0, 3.0), P("Group 4", "5D-10R", 10, -5, 3.0),
+          P("Group 5", "10U-5R", 5, 10, 3.0), P("Group 5", "5U-20R", 20, 5, 3.0),
+          P("Group 5", "5D-20R", 20, -5, 3.0), P("Group 5", "10D-5R", 5, -10, 3.0)
+        ]
       },
       FMVSS_REAR_TURN_TAIL_WIDE: {
         title: "FMVSS 108 Table VII — Rear Turn Signal / Taillamp (≥ 2032 mm Width)",
         primaryLabel: "Rear Turn (cd)",
         secondaryLabel: "Taillamp (cd)",
-        description: "49 CFR § 571.108 Table VII Footnote 6 (SAE J1395): Rear turn signal optically combined with taillamp on vehicles ≥ 2032 mm wide. Base H-5L (LH) / mirrored H-5R (RH) requires 3:1; other core points require 5:1.",
-        points: buildFmvss19Points(3.0, true, false)
+        description: "49 CFR § 571.108 S7.1.2.12 / Table VII: Rear turn signal optically combined with taillamp, vehicles ≥ 2032 mm wide. As narrow, but outboard H-5L (LH base, H-5R when mirrored to RH) relaxed to 3:1.",
+        points: [
+          P("Group 1", "10U-5L", -5, 10, 3.0), P("Group 1", "5U-20L", -20, 5, 3.0),
+          P("Group 1", "5D-20L", -20, -5, 3.0), P("Group 1", "10D-5L", -5, -10, 3.0),
+          P("Group 2", "5U-10L", -10, 5, 3.0), P("Group 2", "H-10L", -10, 0, 3.0), P("Group 2", "5D-10L", -10, -5, 3.0),
+          P("Group 3", "H-5L", -5, 0, 3.0), P("Group 3", "5U-V", 0, 5, 5.0), P("Group 3", "H-V", 0, 0, 5.0),
+          P("Group 3", "5D-V", 0, -5, 5.0), P("Group 3", "H-5R", 5, 0, 5.0),
+          P("Group 4", "5U-10R", 10, 5, 3.0), P("Group 4", "H-10R", 10, 0, 3.0), P("Group 4", "5D-10R", 10, -5, 3.0),
+          P("Group 5", "10U-5R", 5, 10, 3.0), P("Group 5", "5U-20R", 20, 5, 3.0),
+          P("Group 5", "5D-20R", 20, -5, 3.0), P("Group 5", "10D-5R", 5, -10, 3.0)
+        ]
       },
+
+      // ── FMVSS 108 Table VI — Front turn signal combined with parking lamp (S7.1.1.12) ──
       FMVSS_FRONT_TURN_PARKING: {
         title: "FMVSS 108 Table VI — Front Turn Signal / Parking Lamp",
         primaryLabel: "Front Turn (cd)",
         secondaryLabel: "Parking Lamp (cd)",
-        description: "49 CFR § 571.108 Table VI-a/VI-b: Front turn signal optically combined with parking lamp. Enforces 5:1 across all 13 mandatory ratio points (no ratio requirement at 5U/5D-20L/R or 10D-5L/R per Table VI).",
-        points: buildFmvss19Points(5.0, false, false)
+        description: "49 CFR § 571.108 S7.1.1.12 / Table VI: Front turn signal optically combined with parking lamp. 19 turn-signal test points; 5:1 at H-V, 5U-V, 5D-V, H-5L, H-5R; 3:1 at all other points.",
+        points: [
+          P("Group 1", "10U-5L", -5, 10, 3.0), P("Group 1", "5U-20L", -20, 5, 3.0),
+          P("Group 1", "5D-20L", -20, -5, 3.0), P("Group 1", "10D-5L", -5, -10, 3.0),
+          P("Group 2", "5U-10L", -10, 5, 3.0), P("Group 2", "H-10L", -10, 0, 3.0), P("Group 2", "5D-10L", -10, -5, 3.0),
+          P("Group 3", "H-5L", -5, 0, 5.0), P("Group 3", "5U-V", 0, 5, 5.0), P("Group 3", "H-V", 0, 0, 5.0),
+          P("Group 3", "5D-V", 0, -5, 5.0), P("Group 3", "H-5R", 5, 0, 5.0),
+          P("Group 4", "5U-10R", 10, 5, 3.0), P("Group 4", "H-10R", 10, 0, 3.0), P("Group 4", "5D-10R", 10, -5, 3.0),
+          P("Group 5", "10U-5R", 5, 10, 3.0), P("Group 5", "5U-20R", 20, 5, 3.0),
+          P("Group 5", "5D-20R", 20, -5, 3.0), P("Group 5", "10D-5R", 5, -10, 3.0)
+        ]
       },
+
+      // ── FMVSS 108 — Turn signal combined with clearance lamp (vehicles ≥ 2032 mm only) ──
       FMVSS_TURN_CLEARANCE: {
-        title: "FMVSS 108 Tables VI & VII — Turn Signal / Clearance Lamp",
+        title: "FMVSS 108 Tables VI & VII — Turn Signal / Clearance Lamp (≥ 2032 mm)",
         primaryLabel: "Turn Signal (cd)",
         secondaryLabel: "Clearance (cd)",
-        description: "49 CFR § 571.108 Tables VI & VII: Front or rear turn signal lamp optically combined with a clearance lamp. Enforces a 5:1 minimum intensity ratio across all 19 test points.",
-        points: buildFmvss19Points(5.0, true, true)
-      },
-      ECE_R148_STOP_TAIL: {
-        title: "UN/ECE R148 Annex 3 — Stop / Rear Position (Tail) Lamp",
-        primaryLabel: "Stop Lamp (cd)",
-        secondaryLabel: "Rear Position (cd)",
-        description: "UN Regulation No. 148: Ratio of luminous intensities between Stop and Rear Position (Tail) lamps measured simultaneously. Mandatory 5.0:1 ratio across all 17 standard ECE spatial grid points.",
+        description: "49 CFR § 571.108 S7.1.1.12 / S7.1.2.12: Turn signal optically combined with a clearance lamp on MPV, truck, trailer or bus ≥ 2032 mm wide (ratio not required below that width). Uses the turn-signal multipliers: 5:1 at H-V, 5U-V, 5D-V, H-5L, H-5R; 3:1 elsewhere.",
         points: [
-          { zone: "10° Up",   baseName: "10U-5L",  baseH: -5,  v: 10, req: 5.0 },
-          { zone: "10° Up",   baseName: "10U-5R",  baseH: 5,   v: 10, req: 5.0 },
-          { zone: "5° Up",    baseName: "5U-10L",  baseH: -10, v: 5,  req: 5.0 },
-          { zone: "5° Up",    baseName: "5U-V",    baseH: 0,   v: 5,  req: 5.0 },
-          { zone: "5° Up",    baseName: "5U-10R",  baseH: 10,  v: 5,  req: 5.0 },
-          { zone: "H Plane",  baseName: "H-20L",   baseH: -20, v: 0,  req: 5.0 },
-          { zone: "H Plane",  baseName: "H-10L",   baseH: -10, v: 0,  req: 5.0 },
-          { zone: "H Plane",  baseName: "H-5L",    baseH: -5,  v: 0,  req: 5.0 },
-          { zone: "H Plane",  baseName: "H-V",     baseH: 0,   v: 0,  req: 5.0 },
-          { zone: "H Plane",  baseName: "H-5R",    baseH: 5,   v: 0,  req: 5.0 },
-          { zone: "H Plane",  baseName: "H-10R",   baseH: 10,  v: 0,  req: 5.0 },
-          { zone: "H Plane",  baseName: "H-20R",   baseH: 20,  v: 0,  req: 5.0 },
-          { zone: "5° Down",  baseName: "5D-10L",  baseH: -10, v: -5, req: 5.0 },
-          { zone: "5° Down",  baseName: "5D-V",    baseH: 0,   v: -5, req: 5.0 },
-          { zone: "5° Down",  baseName: "5D-10R",  baseH: 10,  v: -5, req: 5.0 },
-          { zone: "10° Down", baseName: "10D-5L",  baseH: -5,  v: -10, req: 5.0 },
-          { zone: "10° Down", baseName: "10D-5R",  baseH: 5,   v: -10, req: 5.0 }
+          P("Group 1", "10U-5L", -5, 10, 3.0), P("Group 1", "5U-20L", -20, 5, 3.0),
+          P("Group 1", "5D-20L", -20, -5, 3.0), P("Group 1", "10D-5L", -5, -10, 3.0),
+          P("Group 2", "5U-10L", -10, 5, 3.0), P("Group 2", "H-10L", -10, 0, 3.0), P("Group 2", "5D-10L", -10, -5, 3.0),
+          P("Group 3", "H-5L", -5, 0, 5.0), P("Group 3", "5U-V", 0, 5, 5.0), P("Group 3", "H-V", 0, 0, 5.0),
+          P("Group 3", "5D-V", 0, -5, 5.0), P("Group 3", "H-5R", 5, 0, 5.0),
+          P("Group 4", "5U-10R", 10, 5, 3.0), P("Group 4", "H-10R", 10, 0, 3.0), P("Group 4", "5D-10R", 10, -5, 3.0),
+          P("Group 5", "10U-5R", 5, 10, 3.0), P("Group 5", "5U-20R", 20, 5, 3.0),
+          P("Group 5", "5D-20R", 20, -5, 3.0), P("Group 5", "10D-5R", 5, -10, 3.0)
+        ]
+      },
+
+      // ── UN R148 — Stop lamp reciprocally incorporated with rear position lamp ──
+      ECE_R148_STOP_TAIL: {
+        title: "UN R148 — Stop / Rear Position (Tail) Lamp",
+        primaryLabel: "Stop + Tail ON (cd)",
+        secondaryLabel: "Rear Position (cd)",
+        description: "UN Regulation No. 148: ratio of (stop + rear position lit together) to rear position alone ≥ 5:1, required only inside the field bounded by H ±10° and V ±5° of the light distribution table — 11 grid points. Load the combined (both functions ON) file as Primary.",
+        points: [
+          P("5° Up",   "5U-10L", -10, 5, 5.0), P("5° Up",   "5U-V", 0, 5, 5.0), P("5° Up",   "5U-10R", 10, 5, 5.0),
+          P("H Plane", "H-10L", -10, 0, 5.0), P("H Plane", "H-5L", -5, 0, 5.0), P("H Plane", "H-V", 0, 0, 5.0),
+          P("H Plane", "H-5R", 5, 0, 5.0), P("H Plane", "H-10R", 10, 0, 5.0),
+          P("5° Down", "5D-10L", -10, -5, 5.0), P("5° Down", "5D-V", 0, -5, 5.0), P("5° Down", "5D-10R", 10, -5, 5.0)
         ]
       }
     };
